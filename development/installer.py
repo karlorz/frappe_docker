@@ -124,6 +124,22 @@ def init_bench_if_not_exist(args):
         env = os.environ.copy()
         if args.py_version:
             env["PYENV_VERSION"] = args.py_version
+        
+        # Fix git safe directory issues for apps
+        cprint("Configuring git safe directories...", level=3)
+        git_safe_dirs = [
+            f"/workspace/development/{args.bench_name}/apps/erpnext",
+            f"/workspace/development/{args.bench_name}/apps/frappe",
+        ]
+        for safe_dir in git_safe_dirs:
+            try:
+                subprocess.call(
+                    ["git", "config", "--global", "--add", "safe.directory", safe_dir],
+                    cwd=os.getcwd(),
+                )
+            except subprocess.CalledProcessError:
+                pass  # Continue if git config fails
+        
         init_command = ""
         if args.node_version:
             init_command = f"nvm use {args.node_version};"
