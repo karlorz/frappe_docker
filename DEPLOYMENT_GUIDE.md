@@ -6,7 +6,7 @@ A comprehensive guide for setting up Frappe/ERPNext development environments and
 
 ### Option 1: Play with Docker (Fastest)
 ```bash
-git clone https://github.com/frappe/frappe_docker
+git clone https://github.com/karlorz/frappe_docker
 cd frappe_docker
 docker compose -f pwd.yml up -d
 
@@ -14,9 +14,23 @@ docker compose -f pwd.yml up -d
 # Login: Administrator / admin
 ```
 
+## 🌐 Site Access URLs
+
+### Development Environment
+- **URL**: `http://development.localhost:8000`
+- **Port**: 8000 (development server)
+- **Setup**: VSCode Dev Containers or manual development setup
+
+### Production/PWD Environment  
+- **URL**: `http://localhost:8080`
+- **Port**: 8080 (configured in pwd.yml)
+- **Setup**: Play with Docker configuration
+
+**Important**: Development and production use different ports! Don't confuse the URLs.
+
 ### Option 2: ARM64 (Apple Silicon)
 ```bash
-git clone https://github.com/frappe/frappe_docker
+git clone https://github.com/karlorz/frappe_docker
 cd frappe_docker
 
 # Build ARM64 images
@@ -34,12 +48,45 @@ docker compose -f pwd.yml up -d
 **Prerequisites:**
 - Docker Desktop with 4GB+ RAM allocation
 - Visual Studio Code
+
+## 🚀 Development Server Start Options
+
+### Option 1: Fast Command-Line (Recommended for Speed)
+
+**Single Command - Complete Stack:**
+```bash
+# Starts web server + background workers + file watcher + scheduler
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && source env/bin/activate && honcho start socketio watch schedule worker web"
+```
+
+**Separate Commands - More Control:**
+```bash
+# Terminal 1: Web Server (Essential)
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000 --noreload"
+
+# Terminal 2: Background Worker (Required for Demo Data & Background Jobs)
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && source env/bin/activate && bench --site development.localhost worker --queue default"
+
+# Terminal 3: File Watcher (Optional - for hot-reload)
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && source env/bin/activate && bench watch"
+```
+
+**Access Development Site**: `http://localhost:8000`
+
+### Option 2: VSCode Debugger (Slower but with Debugging)
+
+Use the **"Honcho + Web debug"** launch profile from `.vscode/launch.json`:
+- Includes web server + all background services
+- Slower startup but provides debugging capabilities
+- **Never use "Bench Web" alone** - it lacks background workers needed for demo data
+
+**Critical**: Always ensure background workers are running when testing demo data functionality!
 - Dev Containers extension
 
 **Setup Steps:**
 ```bash
 # Clone and setup
-git clone https://github.com/frappe/frappe_docker
+git clone https://github.com/karlorz/frappe_docker
 cd frappe_docker
 
 # Copy configurations
@@ -67,7 +114,7 @@ bench set-config -g redis_socketio redis://redis-queue:6379
 bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 --admin-password admin development.localhost
 
 # Install ERPNext
-bench get-app --branch version-15 --resolve-deps erpnext
+bench get-app --branch version-15-dev --resolve-deps erpnext https://github.com/karlorz/erpnext
 bench --site development.localhost install-app erpnext
 
 # Enable developer mode
@@ -130,11 +177,11 @@ git remote add upstream https://github.com/frappe/erpnext.git
 git fetch upstream
 
 # Create feature branches
-git checkout -b feature/custom-module develop-next
+git checkout -b feature/custom-module version-15-dev
 
 # Sync with upstream periodically
 git fetch upstream
-git checkout develop-next
+git checkout version-15-dev
 git merge upstream/version-15  # or rebase if preferred
 ```
 
@@ -204,14 +251,14 @@ sudo mysql -u root -p -e "UPDATE mysql.user SET Password=PASSWORD('yourpassword'
 **Setup Frappe:**
 ```bash
 # Initialize bench
-bench init --frappe-branch version-15 frappe-bench
+bench init --frappe-branch version-15-dev frappe-bench
 cd frappe-bench
 
 # Create new site
 bench new-site mysite.local
 
 # Install ERPNext
-bench get-app --branch version-15 erpnext
+bench get-app --branch version-15-dev erpnext https://github.com/karlorz/erpnext
 bench --site mysite.local install-app erpnext
 
 # Start development
@@ -268,7 +315,7 @@ chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
 
 **Deploy:**
 ```bash
-git clone https://github.com/frappe/frappe_docker
+git clone https://github.com/karlorz/frappe_docker
 cd frappe_docker
 
 # Configure environment
@@ -313,8 +360,8 @@ SITES=`site1.com`,`site2.com`,`site3.com`
 cat > apps.json << EOF
 [
   {
-    "url": "https://github.com/frappe/erpnext",
-    "branch": "version-15"
+    "url": "https://github.com/karlorz/erpnext",
+    "branch": "version-15-dev"
   },
   {
     "url": "https://github.com/yourorg/custom-app",
@@ -359,6 +406,33 @@ bench update
 # Migrate after updates
 bench --site mysite.local migrate
 ```
+
+### Updating Apps from karlorz Repositories
+
+**For Development Environment:**
+```bash
+# Update Frappe Framework from karlorz/frappe
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench/apps/frappe && git pull upstream version-15-dev"
+
+# Update ERPNext from karlorz/erpnext
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench/apps/erpnext && git pull upstream version-15-dev"
+
+# Rebuild assets after updates
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench build"
+```
+
+**Alternative Methods:**
+```bash
+# Method 1: Using bench update (comprehensive)
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench update"
+
+# Method 2: Clean reinstall with latest
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development && python installer.py --recreate-site --apps-json apps-example.json"
+```
+
+**Note**: The development container is already configured to use karlorz repositories:
+- Frappe: `https://github.com/karlorz/frappe` (branch: version-15-dev)
+- ERPNext: `https://github.com/karlorz/erpnext` (branch: version-15-dev)
 
 ### Monitoring and Logs
 ```bash
@@ -423,9 +497,9 @@ free -h
 cd frappe-bench && bench drop-site development.localhost --force
 
 # Or clean restart containers
-docker compose -f .devcontainer/docker-compose.yml down
-docker volume rm devcontainer_mariadb-data
-docker compose -f .devcontainer/docker-compose.yml up -d
+docker-compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' down
+docker volume rm frappe_docker_devcontainer_mariadb-data
+docker-compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
 
 # Then re-run installer
 python development/installer.py
@@ -474,12 +548,40 @@ docker stats
 
 ## 🔐 Security Notes
 
-- Change default passwords in production
-- Use environment variables for secrets
+### Production Security Best Practices
+- Change default passwords in production environments
+- Use environment variables for secrets management
 - Enable SSL/TLS for production sites
 - Regular backups and security updates
 - Network isolation for production deployments
 - Use secrets management for sensitive data
+
+### Security Improvements Implemented
+**Critical Security Vulnerabilities Fixed** (September 2025):
+- **Issue**: `ignore_permissions=True` bypassed Frappe's Role-Based Access Control (RBAC) system
+- **Files Affected**: `setup_wizard.py`, `demo.py`
+- **Solution**: Replaced with context-aware permission flags
+- **Impact**: Prevents unauthorized permission bypass in production
+
+```python
+# Before (Vulnerable):
+doc.insert(ignore_permissions=True)
+
+# After (Secure):
+doc.insert(ignore_permissions=frappe.flags.in_setup_wizard or frappe.flags.in_install)
+```
+
+### Development Security Considerations
+- **Context-Aware Permissions**: Permission bypass only allowed during setup/installation
+- **Atomic Operations**: Department creation uses race-condition-safe operations
+- **Input Validation**: Proper validation and sanitization of user inputs
+- **Error Handling**: Secure error logging without exposing sensitive information
+
+### Code Security Features
+- **Shared Utilities**: Centralized, audited functions for common operations
+- **Caching Strategy**: Performance optimizations without compromising security
+- **Transaction Safety**: Proper database transaction handling with savepoints
+- **Exception Handling**: Graceful error recovery that maintains system integrity
 
 ---
 

@@ -6,6 +6,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This repository contains Docker containerization for Frappe Framework and ERPNext - a complete enterprise resource planning (ERP) system. The architecture follows a microservices pattern with separate containers for different components of the Frappe/ERPNext stack.
 
+## Source Code Repositories
+
+**IMPORTANT**: For git history analysis and framework investigation, use these source repositories instead of the Docker development copies:
+
+### **Primary Source Repositories**
+- **Frappe Framework**: `/Users/karlchow/Desktop/code/frappe` 
+  - Branch: `version-15-dev`
+  - Full git history available  
+  - Use for framework-level investigations
+  - **Note**: Contains fixes for demo data setup wizard issue (sanitize_input removal)
+
+- **ERPNext**: `/Users/karlchow/Desktop/code/karlorz/erpnext`
+  - Branch: `version-15-dev` 
+  - Full git history available
+  - Use for ERPNext-specific investigations
+
+### **Docker Development Environment** 
+- **Path**: `/Users/karlchow/Desktop/code/frappe_docker/development/frappe-bench/apps/`
+- **Purpose**: Development and testing only
+- **Limitation**: Does NOT contain complete git history
+- **Usage**: Code editing, testing, debugging only
+
 ## Key Architecture Components
 
 ### Container Structure
@@ -23,7 +45,73 @@ This repository contains Docker containerization for Frappe Framework and ERPNex
 - **Bench Images** (`images/bench/`): Development tooling container
 - **Layered Images** (`images/layered/`): Alternative build approach
 
+## Tool Usage Guidelines
+
+### File System Exploration Best Practices
+
+**IMPORTANT: Glob tool limitations with development directory**
+The Glob tool may not properly detect files in `development/frappe-bench/apps/*` even after .gitignore modifications. Always use Bash commands first for file system exploration in development directories:
+
+```bash
+# Use these commands instead of Glob for development directory
+ls -la development/frappe-bench/apps/
+find development/frappe-bench/apps -name "*.py" -type f | head -10
+ls -la development/frappe-bench/sites/
+```
+
+**Recommended approach:**
+1. Use Bash commands to explore file structure first
+2. Use Read tool once file paths are confirmed via Bash
+3. Use Glob tool for other project areas where it works reliably
+
+This ensures accurate file system awareness for ERPNext/Frappe development work.
+
+### Docker Container Operations
+
+**Container Management:**
+```bash
+# List running containers
+docker ps -a | grep frappe
+
+# Current container names (as of this session):
+# - frappe_docker_devcontainer-frappe-1 (main development container)
+# - frappe_docker_devcontainer-mariadb-1 (database)
+# - frappe_docker_devcontainer-redis-cache-1 (cache)
+# - frappe_docker_devcontainer-redis-queue-1 (queue)
+```
+
+**Executing Commands in Container:**
+```bash
+# Basic command execution (no TTY needed for simple commands)
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && [command]"
+
+# Examples:
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench build"
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench --version"
+
+# Interactive session (when TTY is available)
+docker exec -it frappe_docker_devcontainer-frappe-1 bash
+```
+
+**Asset Building:**
+```bash
+# Build static assets (required after code changes or 404 asset errors)
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench build"
+```
+
+**Common Troubleshooting:**
+- If you see 404 errors for assets like `*.bundle.*.css` or `*.bundle.*.js`, run `bench build`
+- Container names may vary between sessions - always check with `docker ps -a | grep frappe`
+- Commands executed inside container should use `/workspace/development/frappe-bench` as working directory
+
 ## Common Development Commands
+
+### Site Access URLs
+**IMPORTANT: Correct development site URLs**
+- **Development Environment**: `http://development.localhost:8000` or `http://localhost:8000`
+- **Production/PWD Environment**: `http://localhost:8080` (configured in pwd.yml)
+
+**Note**: Previous documentation incorrectly listed localhost:8080 for development - this is wrong!
 
 ### Quick Start Commands
 ```bash
@@ -61,6 +149,55 @@ APPS_JSON_BASE64=$(base64 -w 0 apps.json) docker buildx bake --set "*.args.APPS_
 ```
 
 ### Development Commands
+
+#### For VSCode Dev Containers (Recommended)
+```bash
+# Access dev container from VSCode
+# Use Command Palette → "Dev Containers: Reopen in Container"
+# Or use Remote-Containers extension
+
+# Inside dev container terminal
+cd /workspace/development/frappe-bench
+bench --help
+bench migrate
+bench clear-cache
+```
+
+#### Python Environment Activation
+**CRITICAL**: When running Python commands inside Docker containers under frappe-bench, you must activate the virtual environment first:
+
+```bash
+# Inside Docker container - ALWAYS activate venv before Python commands
+source /workspace/development/frappe-bench/env/bin/activate
+
+# Then run Python/bench commands
+python -c "import frappe; frappe.init_site('development.localhost')"
+bench --site development.localhost console
+```
+
+#### For Docker CLI Access (Alternative)
+```bash
+# Find the running dev container name
+docker ps --format "table {{.Names}}\t{{.Image}}\t{{.Status}}"
+
+# Access dev container shell (replace container name as needed)
+docker exec -it devcontainer-frappe-1 bash
+docker exec -it frappe_docker-devcontainer-frappe-1 bash
+
+# Or access with working directory set
+docker exec -it -w /workspace/development/frappe-bench devcontainer-frappe-1 bash
+
+# Run specific bench commands without entering container
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench migrate"
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench clear-cache"
+
+# Site management commands
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench drop-site development.localhost --force"
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 development.localhost"
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench --site development.localhost install-app erpnext"
+```
+
+#### For Production/PWD Setup
 ```bash
 # Monitor container logs
 docker compose -f pwd.yml logs -f create-site
@@ -160,7 +297,7 @@ bench set-config -g redis_queue redis://redis-queue:6379
 
 # Create site and install ERPNext
 bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 development.localhost
-bench get-app --branch version-15 --resolve-deps erpnext
+bench get-app --branch version-15-dev --resolve-deps erpnext https://github.com/karlorz/erpnext
 bench --site development.localhost install-app erpnext
 
 # Start development server
@@ -174,6 +311,28 @@ python development/installer.py
 
 # Custom apps
 python development/installer.py --apps-json apps-example.json --site-name mysite.localhost
+
+# Recreate site with demo data (useful for development)
+python development/installer.py --recreate-site
+
+# Advanced options
+python development/installer.py \
+  --apps-json apps-example.json \
+  --site-name custom.localhost \
+  --admin-password custompass \
+  --recreate-site \
+  --frappe-branch version-15-dev
+```
+
+### Site Management Commands (Docker CLI)
+```bash
+# Recreate site with demo data using Docker CLI
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development && python installer.py --recreate-site"
+
+# Individual bench commands
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench drop-site development.localhost --force"
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 development.localhost"
+docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench --site development.localhost install-app erpnext"
 ```
 
 ### Manual Container Development
@@ -222,14 +381,14 @@ pip3 install frappe-bench
 ### Native Installation Process
 ```bash
 # Initialize bench
-bench init --frappe-branch version-15 frappe-bench
+bench init --frappe-branch version-15-dev frappe-bench
 cd frappe-bench
 
 # Create site
 bench new-site mysite.local
 
 # Install ERPNext
-bench get-app --branch version-15 erpnext
+bench get-app --branch version-15-dev erpnext https://github.com/karlorz/erpnext
 bench --site mysite.local install-app erpnext
 
 # Setup production (optional)
@@ -253,11 +412,25 @@ Frontend container (Nginx) handles SSL termination and load balancing to backend
 - Site creation timing: Wait ~5 minutes for initial site creation
 - Memory allocation: Ensure Docker has at least 4GB RAM allocated
 - ARM64 builds: Must explicitly set platform for Apple Silicon
+- **Demo Data Not Loading**: See `DEMO_DATA_TROUBLESHOOTING.md` for comprehensive guide
+
+### Version Issues
+**CRITICAL**: Even branches labeled "version-15" may contain recent breaking changes!
+- Development branches get updates from main branches
+- Always check actual commit dates: `git log --oneline -1`
+- Use tagged releases for stability, not branch names
 
 ### Log Access
 - Container logs via: `docker compose logs -f <service>`
 - Application logs mounted at `/home/frappe/frappe-bench/logs`
 - Site-specific logs in mounted volumes
+
+### Known Fixed Issues
+1. **Setup Wizard Demo Data (Sept 2025)**: Breaking change in `sanitize_input()` - **FIXED** in karlorz/frappe fork
+   - Lines 59, 77, 88 in `/frappe/desk/page/setup_wizard/setup_wizard.py` 
+   - Reverted `sanitize_input()` calls to restore demo data functionality
+2. **Navigation Differences**: ERPNext Integrations workspace removed in develop-next (intentional)
+3. **Site URL Confusion**: Development uses port 8000, not 8080
 
 ## File Structure Notes
 

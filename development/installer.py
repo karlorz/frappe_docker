@@ -64,16 +64,16 @@ def get_args_parser():
         "--frappe-repo",
         action="store",
         type=str,
-        help="frappe repo to use, default: https://github.com/frappe/frappe",  # noqa: E501
-        default="https://github.com/frappe/frappe",
+        help="frappe repo to use, default: https://github.com/karlorz/frappe",  # noqa: E501
+        default="https://github.com/karlorz/frappe",
     )
     parser.add_argument(
         "-t",
         "--frappe-branch",
         action="store",
         type=str,
-        help="frappe repo to use, default: version-15",  # noqa: E501
-        default="version-15",
+        help="frappe repo to use, default: version-15-dev",  # noqa: E501
+        default="version-15-dev",
     )
     parser.add_argument(
         "-p",
@@ -112,6 +112,11 @@ def get_args_parser():
         type=str,
         help="Database type to use (e.g., mariadb or postgres)",
         default="mariadb",  # Set your default database type here
+    )
+    parser.add_argument(
+        "--recreate-site",
+        action="store_true",
+        help="Drop existing site and recreate it",
     )
     return parser
 
@@ -214,6 +219,18 @@ def init_bench_if_not_exist(args):
 
 
 def create_site_in_bench(args):
+    # Handle site recreation if requested
+    if args.recreate_site:
+        site_path = f"{os.getcwd()}/{args.bench_name}/sites/{args.site_name}"
+        if os.path.exists(site_path):
+            cprint(f"Dropping existing site {args.site_name}...", level=3)
+            subprocess.call(
+                ["bench", "drop-site", args.site_name, "--force", "--db-root-password=123"],
+                cwd=os.getcwd() + "/" + args.bench_name,
+            )
+        else:
+            cprint(f"Site {args.site_name} does not exist, creating new...", level=3)
+    
     if "mariadb" == args.db_type:
         cprint("Set db_host", level=3)
         subprocess.call(
