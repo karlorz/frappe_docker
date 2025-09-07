@@ -12,10 +12,11 @@
       "args": [
         "frappe",
         "serve",
+        "--site",
+        "development.localhost",
         "--port",
         "8000",
-        "--noreload",
-        "--nothreading"
+        "--noreload"
       ],
       "cwd": "${workspaceFolder}/frappe-bench/sites",
       "env": {

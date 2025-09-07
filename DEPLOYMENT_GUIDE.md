@@ -267,21 +267,200 @@ bench start
 
 ### macOS Setup
 
+#### Option A: Full Native Installation
+
 **Install Dependencies:**
 ```bash
 # Using Homebrew
 brew install python3 git node mariadb redis nginx
-brew install --cask wkhtmltopdf
+
+# Note: wkhtmltopdf cask is discontinued as of Dec 2024
+# For PDF generation, use container-based approach or alternatives
 
 # Start services
 brew services start mariadb
 brew services start redis
 
-# Install bench
-pip3 install frappe-bench
+# Install bench (requires breaking system packages on modern macOS)
+pip3 install --break-system-packages frappe-bench
 ```
 
 **Setup Process:** (Same as Linux above)
+
+#### Option B: Hybrid Native Development + Container Services (Recommended for ARM64)
+
+This approach runs the Frappe web server natively on macOS while using containerized database and Redis services. Ideal for development with better native performance.
+
+**Prerequisites:**
+```bash
+# Install basic dependencies
+brew install python3 git node mysql-client
+
+# wkhtmltopdf via Rosetta 2 (Homebrew cask discontinued Dec 2024)
+# Download x86_64 binary and create Rosetta 2 wrapper
+# Example setup:
+# 1. Download wkhtmltopdf x86_64 binary to ~/bin/wkhtmltopdf.bin
+# 2. Create wrapper script at ~/bin/wkhtmltopdf:
+cat > ~/bin/wkhtmltopdf << 'EOF'
+#!/bin/bash
+# Rosetta 2 wrapper for wkhtmltopdf on Apple Silicon
+arch -x86_64 ~/bin/wkhtmltopdf.bin "$@"
+EOF
+chmod +x ~/bin/wkhtmltopdf
+export PATH="$HOME/bin:$PATH"
+
+# MySQL client tools need to be in PATH
+export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
+
+# Option 1: Use uv for Python management (Recommended)
+brew install uv
+cd frappe_docker
+
+# If pyproject.toml already exists with frappe-bench:
+uv sync
+source .venv/bin/activate
+
+# Or to add frappe-bench to new project:
+uv add frappe-bench
+source .venv/bin/activate
+
+# Option 2: Use pip with system packages
+pip3 install --break-system-packages frappe-bench
+
+# Note: Python venv creation may fail with bench init due to ensurepip issues
+# Alternative: Use the container bench directly (see workaround below)
+```
+
+**Setup Container Backend Services:**
+```bash
+# 1. Copy devcontainer configuration
+cp -R devcontainer-example .devcontainer
+
+# 2. Modify .devcontainer/docker-compose.yml to expose ports (if not already done)
+# Add port mappings to mariadb, redis-cache, and redis-queue services:
+
+# mariadb service:
+ports:
+  - "3306:3306"
+
+# redis-cache service:  
+ports:
+  - "6379:6379"
+
+# redis-queue service:
+ports:
+  - "6380:6379"
+
+# 3. Start containers with project name
+docker-compose -f .devcontainer/docker-compose-local.yml --project-name 'frappe_docker_devcontainer' up -d
+```
+
+**Verify Container Services:**
+```bash
+# Test port connectivity
+nc -z localhost 3306 && echo "MariaDB accessible"
+nc -z localhost 6379 && echo "Redis cache accessible" 
+nc -z localhost 6380 && echo "Redis queue accessible"
+```
+
+**Native Bench Setup:**
+
+**Option 1: Automated Setup (Recommended)**
+```bash
+# Change to development directory
+cd development
+
+# Init frappe framework
+bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
+
+# Use automated setup script
+source ../.venv/bin/activate && python installer-local.py
+
+# If you need to recreate the site:
+source ../.venv/bin/activate && python installer-local.py --recreate-site
+
+# Start web server (as shown in script output):
+cd frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000
+
+# Access at: http://localhost:8000
+# Login: Administrator / admin
+```
+
+**Key Features of installer-local.py:**
+- ✅ **Environment Validation**: Automatically checks uv environment setup
+- ✅ **MariaDB TCP Wrapper**: Creates `~/bin/mariadb` wrapper that forces TCP connections
+- ✅ **Container Backend Config**: Configures bench to use localhost ports (3306, 6379, 6380)
+- ✅ **ERPNext Installation**: Automatically installs ERPNext from karlorz repositories
+- ✅ **Site Management**: Handles site creation and recreation with proper configuration
+- ✅ **Error Handling**: Resolves common MySQL socket connection issues on macOS
+
+**Option 2: Manual Setup**
+```bash
+# Change workplace
+cd development
+
+# Using uv environment (recommended):
+source ../.venv/bin/activate && bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
+
+# Or using system pip:
+bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
+
+cd frappe-bench
+
+# Configure for container services
+bench set-config -g db_host localhost
+bench set-config -g db_port 3306
+bench set-config -g redis_cache redis://localhost:6379
+bench set-config -g redis_queue redis://localhost:6380
+bench set-config -g redis_socketio redis://localhost:6380
+
+# Create site using containerized MariaDB (ensure MySQL client in PATH)
+export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
+bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 --admin-password admin development.localhost
+
+# Install ERPNext from karlorz repository (has demo data fixes)
+bench get-app --branch version-15-dev --resolve-deps erpnext https://github.com/karlorz/erpnext
+bench --site development.localhost install-app erpnext
+
+# Start native web server (use --noreload, NOT --nothreading to avoid PDF hangs)
+source env/bin/activate
+bench --site development.localhost serve --port 8000 --noreload
+```
+
+**Workaround for Python venv Issues:**
+If `bench init` fails due to Python venv creation issues on macOS, use the container bench directly:
+
+```bash
+# Ensure containers are running with project name
+cp -R devcontainer-example .devcontainer
+docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
+
+# Use existing container bench with exposed ports
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000 --noreload"
+
+# Access at: http://localhost:8000
+```
+
+**Known Issues on macOS ARM64:**
+- **Python venv creation fails**: Modern macOS has ensurepip issues with some Python versions
+- **wkhtmltopdf discontinued**: Cask removed from Homebrew in Dec 2024, use Rosetta 2 wrapper for x86_64 binary
+- **System packages protection**: Requires `--break-system-packages` for pip installations  
+- **MySQL client required**: MariaDB client tools needed for site creation
+- **PDF generation hanging**: Use `--noreload` instead of `--nothreading` to prevent server hangs during PDF generation
+- ~~**Database initialization issues**: Site creation may fail with corrupted DB~~ - **FIXED** ✅
+- ~~**MariaDB socket connection errors**: MariaDB trying to use socket instead of TCP~~ - **FIXED** ✅
+
+**Tested Working Solutions:**
+- ✅ **installer-local.py**: Fully automated hybrid setup with all fixes applied
+- ✅ **MariaDB TCP wrapper**: Resolves socket connection issues automatically
+- ✅ **Rosetta 2 wkhtmltopdf**: x86_64 binary wrapper for PDF generation on Apple Silicon
+- ✅ **Multi-threaded server**: `--noreload` prevents PDF generation hangs
+- ✅ **uv environment management**: Better than pip for dependency management
+- ✅ **karlorz repositories**: Required for demo data fixes and correct branches
+- ✅ **Container backend services**: Database and Redis run in containers with exposed ports
+
+**Alternative: Use Container for Everything:**
+If native setup is problematic, use the full container development environment as described in the VSCode Dev Containers section.
 
 ### Production Setup (Linux)
 ```bash
@@ -479,6 +658,25 @@ docker compose exec mariadb mysql -u root -ppassword
 cat sites/common_site_config.json
 ```
 
+**MariaDB Connection Issues (macOS Hybrid Setup):**
+```bash
+# Error: "Can't connect to local MySQL server through socket '/tmp/mysql.sock'"
+# Solution: The installer-local.py automatically creates a TCP wrapper
+
+# Manual fix if needed:
+cat > ~/bin/mariadb << 'EOF'
+#!/bin/bash
+exec /opt/homebrew/opt/mysql-client/bin/mysql --protocol=TCP "$@"
+EOF
+chmod +x ~/bin/mariadb
+
+# Add to PATH
+export PATH="$HOME/bin:$PATH"
+
+# Test connection
+mariadb -h localhost -P 3306 -u root -p123 -e "SELECT VERSION();"
+```
+
 **Memory Issues:**
 ```bash
 # Increase Docker Desktop memory allocation to 4GB+
@@ -492,17 +690,30 @@ free -h
 ### Development Issues
 
 **Database Already Exists Error:**
+
+*Container Development Setup:*
 ```bash
 # Drop existing site to start fresh
 cd frappe-bench && bench drop-site development.localhost --force
 
 # Or clean restart containers
-docker-compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' down
+docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' down
 docker volume rm frappe_docker_devcontainer_mariadb-data
-docker-compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
+docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
 
 # Then re-run installer
 python development/installer.py
+```
+
+*Hybrid macOS Setup:*
+```bash
+# Use the installer script's recreate option
+cd development
+source ../.venv/bin/activate && python installer-local.py --recreate-site
+
+# Or manually drop database if needed
+export PATH="$HOME/bin:/opt/homebrew/opt/mysql-client/bin:$PATH"
+mariadb -h localhost -P 3306 -u root -p123 -e "DROP DATABASE IF EXISTS _randomdatabaseid;"
 ```
 
 **Git Dubious Ownership Errors:**

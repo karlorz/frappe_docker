@@ -7,6 +7,7 @@ sites
 development/*
 !development/README.md
 !development/installer.py
+!development/installer-local.py
 !development/apps-example.json
 !development/vscode-example/
 !development/frappe-bench/apps/
@@ -30,3 +31,4 @@ venv
 
 # NodeJS
 node_modules
+uv.lock

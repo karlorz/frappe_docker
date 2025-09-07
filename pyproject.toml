@@ -1,0 +1,9 @@
+[project]
+name = "frappe-docker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "frappe-bench>=5.25.9",
+]

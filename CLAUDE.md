@@ -229,6 +229,24 @@ pip install -r requirements-test.txt
 pytest
 ```
 
+### API Testing with cURL
+```bash
+# First login to get session cookies
+curl -c cookies.txt -d "usr=Administrator&pwd=admin" -X POST http://localhost:8000/api/method/login
+
+# Test API endpoints with authentication cookies
+curl -b cookies.txt http://localhost:8000/api/method/frappe.auth.get_logged_user
+
+# Example: Get document data
+curl -b cookies.txt "http://localhost:8000/api/resource/User/Administrator"
+
+# Example: PDF generation endpoint
+curl -b cookies.txt "http://localhost:8000/api/method/frappe.utils.print_format.download_pdf?doctype=Sales%20Invoice&name=ACC-SINV-2025-00004&format=Standard" -o invoice.pdf
+
+# Alternative: Use session-based authentication
+curl -H "Authorization: token YOUR_API_KEY:YOUR_API_SECRET" http://localhost:8000/api/resource/User/Administrator
+```
+
 ## Environment Configuration
 
 ### Key Environment Files
@@ -305,6 +323,38 @@ bench start
 ```
 
 ### Automated Development Setup
+
+#### Hybrid Native + Container Setup (Recommended for macOS ARM64)
+**For running web server natively while using containerized backend services:**
+
+```bash
+# Prerequisites: Setup devcontainer and start Docker containers
+cp -R devcontainer-example .devcontainer
+docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
+
+# Setup hybrid environment
+cd development
+source ../.venv/bin/activate && python installer-local.py
+
+# Recreate site (if needed)
+source ../.venv/bin/activate && python installer-local.py --recreate-site
+
+# Start native web server
+cd frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000
+
+# Access at: http://localhost:8000
+# Login: Administrator / admin
+```
+
+**Key Features of installer-local.py:**
+- ✅ Validates uv environment setup
+- ✅ Creates MariaDB TCP wrapper to resolve socket connection issues  
+- ✅ Configures bench for localhost backend services (MariaDB port 3306, Redis ports 6379/6380)
+- ✅ Handles ERPNext installation with karlorz repositories
+- ✅ Provides clean site recreation functionality
+- ✅ Works with existing containerized database/Redis services
+
+#### Container-based Setup (Original)
 ```bash
 # Use installer script for quick setup
 python development/installer.py
@@ -327,21 +377,22 @@ python development/installer.py \
 ### Site Management Commands (Docker CLI)
 ```bash
 # Recreate site with demo data using Docker CLI
-docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development && python installer.py --recreate-site"
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development && python installer.py --recreate-site"
 
 # Individual bench commands
-docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench drop-site development.localhost --force"
-docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 development.localhost"
-docker exec -it devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench --site development.localhost install-app erpnext"
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench drop-site development.localhost --force"
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 development.localhost"
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench --site development.localhost install-app erpnext"
 ```
 
 ### Manual Container Development
 ```bash
 # Start containers manually
-docker-compose -f .devcontainer/docker-compose.yml up -d
+cp -R devcontainer-example .devcontainer
+docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
 
 # Enter development container
-docker exec -e "TERM=xterm-256color" -w /workspace/development -it devcontainer-frappe-1 bash
+docker exec -e "TERM=xterm-256color" -w /workspace/development -it frappe_docker_devcontainer-frappe-1 bash
 ```
 
 ### Debugging Configuration
@@ -350,6 +401,8 @@ docker exec -e "TERM=xterm-256color" -w /workspace/development -it devcontainer-
 honcho start socketio watch schedule worker_short worker_long
 
 # Use VSCode debugger launch configuration: "Start Frappe Web Server"
+# CRITICAL: Never use --nothreading flag - causes wkhtmltopdf to hang the entire web server on ALL platforms
+# Always use --noreload instead for debugging (single-threaded mode blocks PDF generation)
 ```
 
 ### Local Development Features
@@ -431,6 +484,14 @@ Frontend container (Nginx) handles SSL termination and load balancing to backend
    - Reverted `sanitize_input()` calls to restore demo data functionality
 2. **Navigation Differences**: ERPNext Integrations workspace removed in develop-next (intentional)
 3. **Site URL Confusion**: Development uses port 8000, not 8080
+4. **MariaDB Socket Connection (Sept 2025)**: MariaDB client trying to use socket instead of TCP - **FIXED**
+   - Created TCP wrapper script at `~/bin/mariadb` that forces `--protocol=TCP`
+   - Automatically handled by `installer-local.py` for hybrid setups
+5. **PDF Generation Hanging (Sept 2025)**: Using `--nothreading` causes wkhtmltopdf to hang server - **FIXED**
+   - **Affects ALL platforms** (Linux AMD64, ARM64, macOS, Windows)
+   - Single-threaded mode blocks entire web server during PDF generation
+   - **Solution**: Always use `--noreload` instead of `--nothreading` for debugging
+   - VSCode launch.json updated to remove `--nothreading` flag
 
 ## File Structure Notes
 
