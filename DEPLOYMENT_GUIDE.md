@@ -101,7 +101,7 @@ code .
 **Inside Container Setup:**
 ```bash
 # Create bench
-bench init --skip-redis-config-generation frappe-bench
+bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
 cd frappe-bench
 
 # Configure for containers
@@ -251,7 +251,7 @@ sudo mysql -u root -p -e "UPDATE mysql.user SET Password=PASSWORD('yourpassword'
 **Setup Frappe:**
 ```bash
 # Initialize bench
-bench init --frappe-branch version-15-dev frappe-bench
+bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
 cd frappe-bench
 
 # Create new site
