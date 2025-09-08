@@ -11,9 +11,9 @@
       "program": "${workspaceFolder}/frappe-bench/apps/frappe/frappe/utils/bench_helper.py",
       "args": [
         "frappe",
-        "serve",
         "--site",
         "development.localhost",
+        "serve",
         "--port",
         "8000",
         "--noreload"
