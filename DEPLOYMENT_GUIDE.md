@@ -629,6 +629,66 @@ docker stats
 
 ## 🔍 Troubleshooting
 
+### Docker Desktop Issues (Windows)
+
+**Git Bash Mount Path Errors:**
+```bash
+# Error: "mkdir /run/desktop/mnt/host/d: file exists"
+# This occurs when Docker Desktop's internal VM has mount path conflicts
+
+# Solution 1: Restart Docker Desktop (Most Effective)
+# 1. Close Docker Desktop completely
+# 2. Restart Docker Desktop
+# 3. Retry the docker-compose command
+
+# Solution 2: Use MSYS_NO_PATHCONV for Git Bash
+export MSYS_NO_PATHCONV=1
+docker-compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
+
+# Solution 3: Use PowerShell Instead of Git Bash
+# Git Bash has path conversion issues that PowerShell doesn't have
+```
+
+**File Sharing Configuration (Newer Docker Desktop Versions):**
+
+Docker Desktop file sharing settings have moved in newer versions:
+
+**Docker Desktop 4.6+ (Current):**
+- Go to **Settings → Resources → File sharing**
+- If "File sharing" is missing, it means Docker Desktop now uses on-demand sharing
+- You'll be prompted to share folders automatically when first mounting them
+
+**Docker Desktop 4.0-4.5:**
+- Go to **Settings → Shared Folders**
+- Manually add `D:\local\frappe_docker` to shared folders
+
+**On-Demand File Sharing (Latest Versions):**
+```bash
+# When you first run a volume mount, Docker Desktop will prompt:
+# "Docker Desktop wants to share D:\local\frappe_docker"
+# Select "Share it" to automatically add to shared folders
+
+# If no prompt appears but mounts fail:
+# 1. Check Docker Desktop → Settings → General → "Use file sharing based on user identity"
+# 2. Ensure your Windows user has access to the directory
+# 3. Try running Docker Desktop as Administrator (temporarily)
+```
+
+**Alternative Mount Formats for Windows:**
+```yaml
+# Option 1: Windows-style absolute path (Recommended)
+volumes:
+  - "D:\\local\\frappe_docker:/workspace:cached"
+
+# Option 2: Unix-style path for Docker Desktop
+volumes:
+  - "/d/local/frappe_docker:/workspace:cached"
+
+# Option 3: PowerShell environment variable
+volumes:
+  - "${PWD}:/workspace:cached"
+```
+
 ### Common Issues
 
 **Site Creation Timeout:**
