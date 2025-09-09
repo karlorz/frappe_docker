@@ -98,7 +98,7 @@ target "erpnext" {
     dockerfile = "images/production/Containerfile"
     target = "erpnext"
     tags = tag("erpnext", "${ERPNEXT_VERSION}")
-    platforms = split(",", PLATFORMS)
+    platforms = split(",", "${PLATFORMS}")
 }
 
 target "base" {
@@ -107,7 +107,7 @@ target "base" {
     dockerfile = "images/production/Containerfile"
     target = "base"
     tags = tag("base", "${FRAPPE_VERSION}")
-    platforms = split(",", PLATFORMS)
+    platforms = split(",", "${PLATFORMS}")
 }
 
 target "build" {
@@ -116,5 +116,5 @@ target "build" {
     dockerfile = "images/production/Containerfile"
     target = "build"
     tags = tag("build", "${ERPNEXT_VERSION}")
-    platforms = split(",", PLATFORMS)
+    platforms = split(",", "${PLATFORMS}")
 }
