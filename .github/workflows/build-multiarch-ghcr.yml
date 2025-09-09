@@ -56,6 +56,6 @@ jobs:
         with:
           push: ${{ github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request' }}
           set: |
-            *.platforms=linux/amd64,linux/arm64
+            *.platform=linux/amd64,linux/arm64
         env:
           REGISTRY_USER: ${{ env.REGISTRY_USER }}
