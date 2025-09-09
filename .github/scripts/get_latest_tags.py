@@ -14,7 +14,7 @@ MajorVersion = Literal["12", "13", "14", "15", "develop"]
 
 def get_latest_tag(repo: Repo, version: MajorVersion) -> str:
     if version == "develop":
-        return "develop"
+        return "version-15-dev"
     regex = rf"v{version}.*"
     refs = subprocess.check_output(
         (

@@ -3,7 +3,7 @@ name: Develop build
 on:
   pull_request:
     branches:
-      - main
+      - dev
     paths:
       - images/production/**
       - overrides/**
@@ -27,6 +27,6 @@ jobs:
       version: develop
       push: ${{ github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request' }}
       python_version: 3.11.6
-      node_version: 18.18.2
+      node_version: 20.19.2
     secrets:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
