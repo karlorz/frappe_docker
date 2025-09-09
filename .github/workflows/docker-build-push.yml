@@ -22,10 +22,7 @@ on:
         required: true
         type: string
         description: NodeJS Version
-    secrets:
-      GITHUB_TOKEN:
-        required: true
-
+  
 jobs:
   build:
     name: Build Multi-arch Images

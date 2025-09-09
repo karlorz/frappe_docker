@@ -38,8 +38,6 @@ jobs:
       push: ${{ github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request' }}
       python_version: 3.10.13
       node_version: 16.20.2
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   v15:
     uses: ./.github/workflows/docker-build-push.yml
@@ -49,8 +47,6 @@ jobs:
       push: ${{ github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request' }}
       python_version: 3.11.6
       node_version: 20.19.2
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   update_versions:
     name: Update example.env and pwd.yml
