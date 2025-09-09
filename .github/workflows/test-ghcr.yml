@@ -1,0 +1,23 @@
+name: Test GHCR Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+    paths:
+      - images/production/**
+      - docker-bake.hcl
+      - .github/workflows/test-ghcr.yml
+
+jobs:
+  test-build:
+    uses: ./.github/workflows/docker-build-push.yml
+    with:
+      repo: erpnext
+      version: "15"
+      push: ${{ github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request' }}
+      python_version: 3.11.6
+      node_version: 20.19.2
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
