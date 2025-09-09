@@ -5,6 +5,10 @@ variable "REGISTRY_USER" {
     default = "ghcr.io/karlorz"
 }
 
+variable "PLATFORMS" {
+    default = "linux/amd64,linux/arm64"
+}
+
 variable PYTHON_VERSION {
     default = "3.11.6"
 }
@@ -94,6 +98,7 @@ target "erpnext" {
     dockerfile = "images/production/Containerfile"
     target = "erpnext"
     tags = tag("erpnext", "${ERPNEXT_VERSION}")
+    platforms = ["${PLATFORMS}"]
 }
 
 target "base" {
@@ -102,6 +107,7 @@ target "base" {
     dockerfile = "images/production/Containerfile"
     target = "base"
     tags = tag("base", "${FRAPPE_VERSION}")
+    platforms = ["${PLATFORMS}"]
 }
 
 target "build" {
@@ -110,4 +116,5 @@ target "build" {
     dockerfile = "images/production/Containerfile"
     target = "build"
     tags = tag("build", "${ERPNEXT_VERSION}")
+    platforms = ["${PLATFORMS}"]
 }

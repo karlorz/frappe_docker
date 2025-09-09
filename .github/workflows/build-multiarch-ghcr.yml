@@ -1,18 +1,24 @@
-name: Test GHCR Build (Fixed)
+name: Build Multi-arch Images to GHCR
 
 on:
   workflow_dispatch:
   push:
     branches:
       - dev
+      - main
     paths:
       - images/production/**
       - docker-bake.hcl
-      - .github/workflows/test-ghcr-fixed.yml
+      - .github/workflows/build-multiarch-ghcr.yml
+
+env:
+  REGISTRY_USER: ghcr.io/karlorz
 
 jobs:
-  test-build:
+  build:
+    name: Build Multi-arch Images
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -27,7 +33,7 @@ jobs:
         uses: docker/setup-buildx-action@v3
         with:
           driver-opts: network=host
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
 
       - name: Get latest versions
         run: python3 ./.github/scripts/get_latest_tags.py --repo erpnext --version develop
@@ -37,15 +43,6 @@ jobs:
           echo "PYTHON_VERSION=3.11.6" >> "$GITHUB_ENV"
           echo "NODE_VERSION=20.19.2" >> "$GITHUB_ENV"
 
-      - name: Test build (no push)
-        uses: docker/bake-action@v6.9.0
-        with:
-          source: .
-          push: false
-          set: "*.platform=linux/amd64"
-        env:
-          REGISTRY_USER: test/karlorz
-
       - name: Login to GitHub Container Registry
         if: github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request'
         uses: docker/login-action@v3
@@ -54,11 +51,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Push to GHCR
-        if: github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request'
+      - name: Build and Push Multi-arch
         uses: docker/bake-action@v6.9.0
         with:
-          push: true
-          set: "*.platform=linux/amd64"
+          push: ${{ github.repository == 'karlorz/frappe_docker' && github.event_name != 'pull_request' }}
+          set: |
+            *.platforms=linux/amd64,linux/arm64
         env:
-          REGISTRY_USER: ghcr.io/karlorz
+          REGISTRY_USER: ${{ env.REGISTRY_USER }}
