@@ -14,7 +14,7 @@ def update_pwd(frappe_version: str, erpnext_version: str):
     with open("pwd.yml", "r+") as f:
         content = f.read()
         content = re.sub(
-            rf"frappe/erpnext:.*", f"frappe/erpnext:{erpnext_version}", content
+            rf"ghcr\.io/karlorz/erpnext:.*|frappe/erpnext:.*", f"ghcr.io/karlorz/erpnext:{erpnext_version}", content
         )
         f.seek(0)
         f.truncate()

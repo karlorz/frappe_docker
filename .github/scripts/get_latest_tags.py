@@ -25,7 +25,7 @@ def get_latest_tag(repo: Repo, version: MajorVersion) -> str:
             "--refs",
             "--tags",
             "--sort=v:refname",
-            f"https://github.com/frappe/{repo}",
+            f"https://github.com/karlorz/{repo}",
             str(regex),
         ),
         encoding="UTF-8",

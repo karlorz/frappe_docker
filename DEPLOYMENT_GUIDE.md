@@ -477,11 +477,11 @@ sudo bench setup lets-encrypt mysite.local
 
 ## 🚢 Production Deployment
 
-### Single Server Docker Deployment
+### GitHub Container Registry (GHCR) Multi-Arch Build & Deployment
 
 **Prerequisites:**
 ```bash
-# Install Docker
+# Install Docker with Buildx support
 curl -fsSL https://get.docker.com | bash
 
 # Install Docker Compose V2
@@ -490,7 +490,63 @@ mkdir -p $DOCKER_CONFIG/cli-plugins
 curl -SL https://github.com/docker/compose/releases/download/v2.24.0/docker-compose-linux-x86_64 \
   -o $DOCKER_CONFIG/cli-plugins/docker-compose
 chmod +x $DOCKER_CONFIG/cli-plugins/docker-compose
+
+# Setup buildx for multi-arch builds
+docker buildx create --name multibuilder --use
+docker buildx inspect --bootstrap
 ```
+
+### Building Production Images
+
+**Local Multi-Arch Build:**
+```bash
+git clone https://github.com/karlorz/frappe_docker
+cd frappe_docker
+
+# Build for both AMD64 and ARM64 platforms
+docker buildx bake --platform linux/amd64,linux/arm64
+
+# Build specific platform only
+docker buildx bake --platform linux/arm64    # Apple Silicon
+docker buildx bake --platform linux/amd64    # Intel/AMD
+
+# Build and push to GitHub Container Registry
+docker login ghcr.io -u yourusername -p YOUR_GITHUB_TOKEN
+docker buildx bake --push --platform linux/amd64,linux/arm64
+
+# View built images
+docker images | grep ghcr.io/karlorz
+```
+
+**Available Image Targets:**
+- `ghcr.io/karlorz/base:latest` - Base Frappe framework
+- `ghcr.io/karlorz/build:latest` - Build tools and dependencies
+- `ghcr.io/karlorz/erpnext:latest` - Complete ERPNext application
+- `ghcr.io/karlorz/bench:latest` - Development toolchain
+
+### GitHub Actions Automated Build
+
+The repository includes automated CI/CD workflows for GHCR:
+
+**Triggered Builds:**
+- **Stable Releases**: `build_stable.yml` - Builds on version tags (v15.x.x)
+- **Development**: `build_develop.yml` - Builds on pushes to main branch
+- **Bench Tools**: `build_bench.yml` - Builds development tools
+
+**Required GitHub Secrets:**
+```bash
+# GITHUB_TOKEN is automatically provided by GitHub Actions
+# No additional secrets needed for GHCR authentication
+```
+
+**Workflow Features:**
+- ✅ Multi-architecture builds (linux/amd64, linux/arm64)
+- ✅ Automated version tagging from repository tags
+- ✅ GitHub Container Registry integration
+- ✅ Build caching for faster subsequent builds
+- ✅ Automated testing and validation
+
+### Single Server Docker Deployment
 
 **Deploy:**
 ```bash
@@ -501,15 +557,20 @@ cd frappe_docker
 cp example.env .env
 nano .env  # Edit with your settings
 
-# Deploy
+# Deploy using GHCR images
 docker compose -f compose.yaml up -d
 ```
 
 ### Environment Configuration (.env)
 ```env
-# Version Configuration
+# Version Configuration  
 ERPNEXT_VERSION=v15.78.1
 FRAPPE_VERSION=v15.0.0
+
+# GHCR Image Configuration (uses karlorz repositories)
+CUSTOM_IMAGE=ghcr.io/karlorz/erpnext
+CUSTOM_TAG=${ERPNEXT_VERSION}
+PULL_POLICY=always
 
 # Database Configuration
 DB_PASSWORD=your_secure_password_here
@@ -557,6 +618,8 @@ APPS_JSON_BASE64=$(base64 -w 0 apps.json) docker buildx bake \
 ## 🔧 Common Operations
 
 ### Site Management
+
+**Basic Site Operations:**
 ```bash
 # Create new site
 docker compose exec backend bench new-site newsite.local
@@ -570,6 +633,41 @@ docker compose exec backend bench --site mysite.local backup
 # Restore site
 docker compose exec backend bench --site mysite.local restore backup_file.sql
 ```
+
+**Site Reset Commands (For 500 Errors & Database Issues):**
+
+When encountering 500 errors related to database metadata (e.g., `frappe/database/database.py:839`), use these commands in order:
+
+```bash
+# 1. Clear cache and rebuild assets (fixes most asset-related 500 errors)
+docker-compose -f pwd.yml exec backend bench clear-cache
+docker-compose -f pwd.yml exec backend bench build
+
+# 2. Run database migration (fixes metadata and schema issues)
+docker-compose -f pwd.yml exec backend bench migrate
+
+# 3. If above doesn't work, reinstall the site (preserves data)
+docker-compose -f pwd.yml exec backend bench --site localhost reinstall
+
+# 4. Complete site reset (last resort - recreates entire site)
+docker-compose -f pwd.yml exec backend bench --site localhost drop-site --force
+docker-compose -f pwd.yml exec backend bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 localhost
+docker-compose -f pwd.yml exec backend bench --site localhost install-app erpnext
+
+# 5. Restart all services after any major changes
+docker-compose -f pwd.yml restart
+```
+
+**Recommended Approach:**
+1. Start with commands 1 and 2 for most 500 errors
+2. Use command 3 if migration doesn't resolve the issue
+3. Only use command 4 for complete site recreation (data loss occurs)
+4. Always restart services after major changes
+
+**Common Error Patterns:**
+- `frappe/database/database.py:839` → Usually fixed by migration (command 2)
+- Asset 404 errors → Fixed by cache clearing and building (command 1)
+- Corrupted metadata → Fixed by reinstallation or complete reset (commands 3-4)
 
 ### Updates and Maintenance
 ```bash

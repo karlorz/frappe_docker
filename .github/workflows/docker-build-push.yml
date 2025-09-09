@@ -23,9 +23,7 @@ on:
         type: string
         description: NodeJS Version
     secrets:
-      DOCKERHUB_USERNAME:
-        required: true
-      DOCKERHUB_TOKEN:
+      GITHUB_TOKEN:
         required: true
 
 jobs:
@@ -71,7 +69,7 @@ jobs:
           source: .
           push: true
         env:
-          REGISTRY_USER: localhost:5000/frappe
+          REGISTRY_USER: localhost:5000/karlorz
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -86,12 +84,13 @@ jobs:
       - name: Test
         run: venv/bin/pytest --color=yes
 
-      - name: Login
+      - name: Login to GitHub Container Registry
         if: ${{ inputs.push }}
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push
         if: ${{ inputs.push }}
@@ -99,3 +98,5 @@ jobs:
         with:
           push: true
           set: "*.platform=linux/amd64,linux/arm64"
+        env:
+          REGISTRY_USER: ghcr.io/karlorz
