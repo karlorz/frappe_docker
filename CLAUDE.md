@@ -288,7 +288,96 @@ The `docker-bake.hcl` file defines:
 
 ## Development Workflow
 
-### VSCode Dev Containers Setup (Recommended)
+### Hybrid Native + Container Setup (Recommended for macOS/Linux)
+**For running web server natively while using containerized backend services:**
+
+**Prerequisites:**
+
+**For Linux (Ubuntu/Debian):**
+```bash
+# Install basic dependencies
+sudo apt update && sudo apt install -y \
+  python3-dev python3-pip python3-venv git build-essential \
+  libssl-dev libffi-dev libmysqlclient-dev \
+  nodejs npm mysql-client netcat-openbsd
+
+# Install wkhtmltopdf (official multi-arch approach)
+WKHTMLTOPDF_VERSION=0.12.6.1-3
+WKHTMLTOPDF_DISTRO=bookworm
+if [ "$(uname -m)" = "aarch64" ]; then export ARCH=arm64; fi
+if [ "$(uname -m)" = "x86_64" ]; then export ARCH=amd64; fi
+downloaded_file=wkhtmltox_${WKHTMLTOPDF_VERSION}.${WKHTMLTOPDF_DISTRO}_${ARCH}.deb
+wget -q https://github.com/wkhtmltopdf/packaging/releases/download/$WKHTMLTOPDF_VERSION/$downloaded_file
+sudo dpkg -i $downloaded_file
+rm $downloaded_file
+
+# Install Python environment manager
+pip3 install uv
+# or alternatively: pip3 install --break-system-packages frappe-bench
+```
+
+**For macOS:**
+```bash
+# Install basic dependencies
+brew install python3 git node mysql-client uv
+
+# wkhtmltopdf via Rosetta 2 (Homebrew cask discontinued Dec 2024)
+# Download x86_64 binary and create Rosetta 2 wrapper
+# Example setup:
+# 1. Download wkhtmltopdf x86_64 binary to ~/bin/wkhtmltopdf.bin
+# 2. Create wrapper script at ~/bin/wkhtmltopdf:
+cat > ~/bin/wkhtmltopdf << 'EOF'
+#!/bin/bash
+# Rosetta 2 wrapper for wkhtmltopdf on Apple Silicon
+arch -x86_64 ~/bin/wkhtmltopdf.bin "$@"
+EOF
+chmod +x ~/bin/wkhtmltopdf
+export PATH="$HOME/bin:$PATH"
+
+# MySQL client tools need to be in PATH
+export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
+```
+
+**Setup Process:**
+```bash
+# 1. Setup Python environment
+cd frappe_docker
+uv sync
+source .venv/bin/activate
+
+# 2. Prerequisites: Setup devcontainer and start Docker containers
+cp -R devcontainer-example .devcontainer
+docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
+
+# 3. Setup hybrid environment
+cd development
+source ../.venv/bin/activate && python installer-local.py
+
+# 4. Recreate site (if needed)
+source ../.venv/bin/activate && python installer-local.py --recreate-site
+
+# 5. Start native web server
+cd frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000
+
+# Access at: http://localhost:8000
+# Login: Administrator / admin
+```
+
+**Key Features of installer-local.py:**
+- ✅ Validates uv environment setup
+- ✅ Creates MariaDB TCP wrapper to resolve socket connection issues
+- ✅ Configures bench for localhost backend services (MariaDB port 3306, Redis ports 6379/6380)
+- ✅ Handles ERPNext installation with karlorz repositories
+- ✅ Provides clean site recreation functionality
+- ✅ Works with existing containerized database/Redis services
+
+**VSCode Debugging Configuration:**
+- Launch configurations in `.vscode/launch.json` are pre-configured for hybrid setup
+- Use F5 to start debugging with "Bench Web" configuration
+- Debugger uses correct Python interpreter: `development/frappe-bench/env/bin/python`
+- Access debug server at: http://localhost:8000 (same as serve command)
+
+### VSCode Dev Containers Setup (Full Container Environment)
 1. Copy example devcontainer configuration
 2. Choose database (MariaDB default, PostgreSQL optional)
 3. Open folder in VSCode with Remote-Containers extension
@@ -324,37 +413,7 @@ bench start
 
 ### Automated Development Setup
 
-#### Hybrid Native + Container Setup (Recommended for macOS ARM64)
-**For running web server natively while using containerized backend services:**
-
-```bash
-# Prerequisites: Setup devcontainer and start Docker containers
-cp -R devcontainer-example .devcontainer
-docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
-
-# Setup hybrid environment
-cd development
-source ../.venv/bin/activate && python installer-local.py
-
-# Recreate site (if needed)
-source ../.venv/bin/activate && python installer-local.py --recreate-site
-
-# Start native web server
-cd frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000
-
-# Access at: http://localhost:8000
-# Login: Administrator / admin
-```
-
-**Key Features of installer-local.py:**
-- ✅ Validates uv environment setup
-- ✅ Creates MariaDB TCP wrapper to resolve socket connection issues  
-- ✅ Configures bench for localhost backend services (MariaDB port 3306, Redis ports 6379/6380)
-- ✅ Handles ERPNext installation with karlorz repositories
-- ✅ Provides clean site recreation functionality
-- ✅ Works with existing containerized database/Redis services
-
-#### Container-based Setup (Original)
+#### Container-based Setup (Alternative)
 ```bash
 # Use installer script for quick setup
 python development/installer.py

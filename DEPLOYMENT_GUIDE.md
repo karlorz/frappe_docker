@@ -43,7 +43,120 @@ docker compose -f pwd.yml up -d
 
 ## 🛠️ Development Environment Setup
 
-### VSCode Dev Containers (Recommended)
+### Hybrid Native + Container Setup (Recommended for macOS/Linux)
+
+This approach runs the Frappe web server natively while using containerized database and Redis services. Ideal for development with better native performance.
+
+**Prerequisites:**
+
+**For Linux (Ubuntu/Debian):**
+```bash
+# Install basic dependencies
+sudo apt update && sudo apt install -y \
+  python3-dev python3-pip python3-venv git build-essential \
+  libssl-dev libffi-dev libmysqlclient-dev \
+  nodejs npm mysql-client netcat-openbsd
+
+# Install wkhtmltopdf (official multi-arch approach)
+WKHTMLTOPDF_VERSION=0.12.6.1-3
+WKHTMLTOPDF_DISTRO=bookworm
+if [ "$(uname -m)" = "aarch64" ]; then export ARCH=arm64; fi
+if [ "$(uname -m)" = "x86_64" ]; then export ARCH=amd64; fi
+downloaded_file=wkhtmltox_${WKHTMLTOPDF_VERSION}.${WKHTMLTOPDF_DISTRO}_${ARCH}.deb
+wget -q https://github.com/wkhtmltopdf/packaging/releases/download/$WKHTMLTOPDF_VERSION/$downloaded_file
+sudo dpkg -i $downloaded_file
+rm $downloaded_file
+
+# Install Python environment manager
+pip3 install uv
+# or alternatively: pip3 install --break-system-packages frappe-bench
+```
+
+**For macOS:**
+```bash
+# Install basic dependencies
+brew install python3 git node mysql-client uv
+
+# wkhtmltopdf via Rosetta 2 (Homebrew cask discontinued Dec 2024)
+# Download x86_64 binary and create Rosetta 2 wrapper
+# Example setup:
+# 1. Download wkhtmltopdf x86_64 binary to ~/bin/wkhtmltopdf.bin
+# 2. Create wrapper script at ~/bin/wkhtmltopdf:
+cat > ~/bin/wkhtmltopdf << 'EOF'
+#!/bin/bash
+# Rosetta 2 wrapper for wkhtmltopdf on Apple Silicon
+arch -x86_64 ~/bin/wkhtmltopdf.bin "$@"
+EOF
+chmod +x ~/bin/wkhtmltopdf
+export PATH="$HOME/bin:$PATH"
+
+# MySQL client tools need to be in PATH
+export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
+```
+
+**Python Environment Setup:**
+```bash
+cd frappe_docker
+
+# Use uv to sync dependencies from pyproject.toml
+uv sync
+source .venv/bin/activate
+```
+
+**Setup Container Backend Services:**
+```bash
+# 1. Copy devcontainer configuration
+cp -R devcontainer-example .devcontainer
+
+# 2. Start containers with project name
+docker-compose -f .devcontainer/docker-compose-local.yml --project-name 'frappe_docker_devcontainer' up -d
+```
+
+**Verify Container Services:**
+```bash
+# Test port connectivity
+nc -z localhost 3306 && echo "MariaDB accessible"
+nc -z localhost 6379 && echo "Redis cache accessible"
+nc -z localhost 6380 && echo "Redis queue accessible"
+```
+
+**Native Bench Setup:**
+
+**Automated Setup (Recommended)**
+```bash
+# Change to development directory
+cd development
+
+# Use automated setup script (handles bench init automatically)
+source ../.venv/bin/activate && python installer-local.py
+
+# If you need to recreate the site:
+source ../.venv/bin/activate && python installer-local.py --recreate-site
+
+# Start web server (as shown in script output):
+cd frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000
+
+# Access at: http://localhost:8000
+# Login: Administrator / admin
+```
+
+**Key Features of installer-local.py:**
+- ✅ **Automatic Bench Init**: Handles `bench init` with karlorz/frappe repository automatically
+- ✅ **Environment Validation**: Automatically checks uv environment setup
+- ✅ **MariaDB TCP Wrapper**: Creates `~/bin/mariadb` wrapper that forces TCP connections
+- ✅ **Container Backend Config**: Configures bench to use localhost ports (3306, 6379, 6380)
+- ✅ **ERPNext Installation**: Automatically installs ERPNext from karlorz repositories
+- ✅ **Site Management**: Handles site creation and recreation with proper configuration
+- ✅ **Error Handling**: Resolves common MySQL socket connection issues on macOS
+
+**VSCode Integration & Debugging:**
+- ✅ **Launch Configurations**: Pre-configured `.vscode/launch.json` for debugging
+- ✅ **F5 Debugging**: Use "Bench Web" configuration to start debug server
+- ✅ **Correct Python Interpreter**: Uses `development/frappe-bench/env/bin/python`
+- ✅ **Debug Server Access**: Available at http://localhost:8000 during debugging
+- ✅ **Breakpoint Support**: Full debugging capabilities with VSCode debugger
+
+### VSCode Dev Containers (Full Container Environment)
 
 **Prerequisites:**
 - Docker Desktop with 4GB+ RAM allocation
@@ -287,180 +400,6 @@ pip3 install --break-system-packages frappe-bench
 
 **Setup Process:** (Same as Linux above)
 
-#### Option B: Hybrid Native Development + Container Services (Recommended for ARM64)
-
-This approach runs the Frappe web server natively on macOS while using containerized database and Redis services. Ideal for development with better native performance.
-
-**Prerequisites:**
-```bash
-# Install basic dependencies
-brew install python3 git node mysql-client
-
-# wkhtmltopdf via Rosetta 2 (Homebrew cask discontinued Dec 2024)
-# Download x86_64 binary and create Rosetta 2 wrapper
-# Example setup:
-# 1. Download wkhtmltopdf x86_64 binary to ~/bin/wkhtmltopdf.bin
-# 2. Create wrapper script at ~/bin/wkhtmltopdf:
-cat > ~/bin/wkhtmltopdf << 'EOF'
-#!/bin/bash
-# Rosetta 2 wrapper for wkhtmltopdf on Apple Silicon
-arch -x86_64 ~/bin/wkhtmltopdf.bin "$@"
-EOF
-chmod +x ~/bin/wkhtmltopdf
-export PATH="$HOME/bin:$PATH"
-
-# MySQL client tools need to be in PATH
-export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
-
-# Option 1: Use uv for Python management (Recommended)
-brew install uv
-cd frappe_docker
-
-# If pyproject.toml already exists with frappe-bench:
-uv sync
-source .venv/bin/activate
-
-# Or to add frappe-bench to new project:
-uv add frappe-bench
-source .venv/bin/activate
-
-# Option 2: Use pip with system packages
-pip3 install --break-system-packages frappe-bench
-
-# Note: Python venv creation may fail with bench init due to ensurepip issues
-# Alternative: Use the container bench directly (see workaround below)
-```
-
-**Setup Container Backend Services:**
-```bash
-# 1. Copy devcontainer configuration
-cp -R devcontainer-example .devcontainer
-
-# 2. Modify .devcontainer/docker-compose.yml to expose ports (if not already done)
-# Add port mappings to mariadb, redis-cache, and redis-queue services:
-
-# mariadb service:
-ports:
-  - "3306:3306"
-
-# redis-cache service:  
-ports:
-  - "6379:6379"
-
-# redis-queue service:
-ports:
-  - "6380:6379"
-
-# 3. Start containers with project name
-docker-compose -f .devcontainer/docker-compose-local.yml --project-name 'frappe_docker_devcontainer' up -d
-```
-
-**Verify Container Services:**
-```bash
-# Test port connectivity
-nc -z localhost 3306 && echo "MariaDB accessible"
-nc -z localhost 6379 && echo "Redis cache accessible" 
-nc -z localhost 6380 && echo "Redis queue accessible"
-```
-
-**Native Bench Setup:**
-
-**Option 1: Automated Setup (Recommended)**
-```bash
-# Change to development directory
-cd development
-
-# Init frappe framework
-bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
-
-# Use automated setup script
-source ../.venv/bin/activate && python installer-local.py
-
-# If you need to recreate the site:
-source ../.venv/bin/activate && python installer-local.py --recreate-site
-
-# Start web server (as shown in script output):
-cd frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000
-
-# Access at: http://localhost:8000
-# Login: Administrator / admin
-```
-
-**Key Features of installer-local.py:**
-- ✅ **Environment Validation**: Automatically checks uv environment setup
-- ✅ **MariaDB TCP Wrapper**: Creates `~/bin/mariadb` wrapper that forces TCP connections
-- ✅ **Container Backend Config**: Configures bench to use localhost ports (3306, 6379, 6380)
-- ✅ **ERPNext Installation**: Automatically installs ERPNext from karlorz repositories
-- ✅ **Site Management**: Handles site creation and recreation with proper configuration
-- ✅ **Error Handling**: Resolves common MySQL socket connection issues on macOS
-
-**Option 2: Manual Setup**
-```bash
-# Change workplace
-cd development
-
-# Using uv environment (recommended):
-source ../.venv/bin/activate && bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
-
-# Or using system pip:
-bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
-
-cd frappe-bench
-
-# Configure for container services
-bench set-config -g db_host localhost
-bench set-config -g db_port 3306
-bench set-config -g redis_cache redis://localhost:6379
-bench set-config -g redis_queue redis://localhost:6380
-bench set-config -g redis_socketio redis://localhost:6380
-
-# Create site using containerized MariaDB (ensure MySQL client in PATH)
-export PATH="/opt/homebrew/opt/mysql-client/bin:$PATH"
-bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 --admin-password admin development.localhost
-
-# Install ERPNext from karlorz repository (has demo data fixes)
-bench get-app --branch version-15-dev --resolve-deps erpnext https://github.com/karlorz/erpnext
-bench --site development.localhost install-app erpnext
-
-# Start native web server (use --noreload, NOT --nothreading to avoid PDF hangs)
-source env/bin/activate
-bench --site development.localhost serve --port 8000 --noreload
-```
-
-**Workaround for Python venv Issues:**
-If `bench init` fails due to Python venv creation issues on macOS, use the container bench directly:
-
-```bash
-# Ensure containers are running with project name
-cp -R devcontainer-example .devcontainer
-docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
-
-# Use existing container bench with exposed ports
-docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && source env/bin/activate && bench --site development.localhost serve --port 8000 --noreload"
-
-# Access at: http://localhost:8000
-```
-
-**Known Issues on macOS ARM64:**
-- **Python venv creation fails**: Modern macOS has ensurepip issues with some Python versions
-- **wkhtmltopdf discontinued**: Cask removed from Homebrew in Dec 2024, use Rosetta 2 wrapper for x86_64 binary
-- **System packages protection**: Requires `--break-system-packages` for pip installations  
-- **MySQL client required**: MariaDB client tools needed for site creation
-- **PDF generation hanging**: Use `--noreload` instead of `--nothreading` to prevent server hangs during PDF generation
-- ~~**Database initialization issues**: Site creation may fail with corrupted DB~~ - **FIXED** ✅
-- ~~**MariaDB socket connection errors**: MariaDB trying to use socket instead of TCP~~ - **FIXED** ✅
-
-**Tested Working Solutions:**
-- ✅ **installer-local.py**: Fully automated hybrid setup with all fixes applied
-- ✅ **MariaDB TCP wrapper**: Resolves socket connection issues automatically
-- ✅ **Rosetta 2 wkhtmltopdf**: x86_64 binary wrapper for PDF generation on Apple Silicon
-- ✅ **Multi-threaded server**: `--noreload` prevents PDF generation hangs
-- ✅ **uv environment management**: Better than pip for dependency management
-- ✅ **karlorz repositories**: Required for demo data fixes and correct branches
-- ✅ **Container backend services**: Database and Redis run in containers with exposed ports
-
-**Alternative: Use Container for Everything:**
-If native setup is problematic, use the full container development environment as described in the VSCode Dev Containers section.
 
 ### Production Setup (Linux)
 ```bash
@@ -498,21 +437,59 @@ docker buildx inspect --bootstrap
 
 ### Building Production Images
 
-**Local Multi-Arch Build:**
+**🍎 macOS Build Script (Recommended):**
 ```bash
 git clone https://github.com/karlorz/frappe_docker
 cd frappe_docker
 
+# Make script executable
+chmod +x build-macos.sh
+
+# Build all images for Apple Silicon (ARM64)
+./build-macos.sh all
+
+# Build specific image with progress monitoring
+./build-macos.sh --progress=plain erpnext
+
+# Build for Intel Mac
+./build-macos.sh -p linux/amd64 all
+
+# Build and load locally (single platform)
+./build-macos.sh --load base
+
+# Build with custom versions
+./build-macos.sh -f v15.0.0 -e v15.0.0 erpnext
+
+# Build and push to registry
+./build-macos.sh --push erpnext
+
+# See all options
+./build-macos.sh --help
+```
+
+**Manual Docker Buildx (Alternative):**
+```bash
+git clone https://github.com/karlorz/frappe_docker
+cd frappe_docker
+
+# Set required environment variables
+export FRAPPE_VERSION="version-15-dev"
+export ERPNEXT_VERSION="version-15-dev" 
+export REGISTRY_USER="ghcr.io/karlorz"
+
 # Build for both AMD64 and ARM64 platforms
-docker buildx bake --platform linux/amd64,linux/arm64
+docker buildx bake --set "*.platform=linux/amd64,linux/arm64"
 
 # Build specific platform only
-docker buildx bake --platform linux/arm64    # Apple Silicon
-docker buildx bake --platform linux/amd64    # Intel/AMD
+docker buildx bake --set "*.platform=linux/arm64"    # Apple Silicon
+docker buildx bake --set "*.platform=linux/amd64"    # Intel/AMD
+
+# Build with progress monitoring
+docker buildx bake --set "*.platform=linux/arm64" --progress=plain
 
 # Build and push to GitHub Container Registry
 docker login ghcr.io -u yourusername -p YOUR_GITHUB_TOKEN
-docker buildx bake --push --platform linux/amd64,linux/arm64
+docker buildx bake --set "*.platform=linux/amd64,linux/arm64" --push
 
 # View built images
 docker images | grep ghcr.io/karlorz
@@ -523,6 +500,50 @@ docker images | grep ghcr.io/karlorz
 - `ghcr.io/karlorz/build:latest` - Build tools and dependencies
 - `ghcr.io/karlorz/erpnext:latest` - Complete ERPNext application
 - `ghcr.io/karlorz/bench:latest` - Development toolchain
+
+**🔧 macOS Build Troubleshooting:**
+
+*Build Progress Monitoring:*
+```bash
+# Monitor build with detailed progress
+./build-macos.sh --progress=plain base
+
+# Save build log for analysis
+./build-macos.sh --progress=plain erpnext 2>&1 | tee build.log
+
+# Check build status in separate terminal
+tail -f build.log
+```
+
+*Common Issues:*
+```bash
+# Issue: "couldn't find a bake definition"
+# Solution: Ensure environment variables are set
+export FRAPPE_VERSION="version-15-dev"
+export ERPNEXT_VERSION="version-15-dev"
+
+# Issue: Build hangs or times out (Apple Silicon)
+# Solution: Increase Docker memory allocation (>4GB)
+# Docker Desktop → Settings → Resources → Memory
+
+# Issue: Platform mismatch errors
+# Solution: Use explicit platform setting
+./build-macos.sh -p linux/arm64 base  # Apple Silicon
+./build-macos.sh -p linux/amd64 base  # Intel Mac
+
+# Check buildx builder status
+docker buildx inspect multibuilder
+```
+
+*Build Time Estimates:*
+- **Base image**: 15-20 minutes (Apple Silicon), 20-25 minutes (Intel)
+- **ERPNext image**: 25-35 minutes (Apple Silicon), 30-40 minutes (Intel)
+- **All images**: 45-60 minutes total
+
+*Resource Requirements:*
+- **Disk Space**: ~10GB free space recommended
+- **Memory**: 4GB+ allocated to Docker Desktop
+- **Network**: Stable internet connection (downloads ~2GB dependencies)
 
 ### GitHub Actions Automated Build
 
@@ -855,9 +876,9 @@ free -h
 cd frappe-bench && bench drop-site development.localhost --force
 
 # Or clean restart containers
-docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' down
+docker-compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' down
 docker volume rm frappe_docker_devcontainer_mariadb-data
-docker compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
+docker-compose -f .devcontainer/docker-compose.yml --project-name 'frappe_docker_devcontainer' up -d
 
 # Then re-run installer
 python development/installer.py

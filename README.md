@@ -32,7 +32,7 @@ Then run: `docker compose -f pwd.yml up -d`
 
 After you clone the repo and `cd frappe_docker`, run this command to build multi-architecture images specifically for ARM64.
 
-`docker buildx bake --no-cache --set "*.platform=linux/arm64"`
+`docker buildx bake --no-cache --set "*.platform=linux/arm64"` --load
 
 and then
 
