@@ -440,6 +440,7 @@ bench start
 crontab -u frappe -e
 
 # Copy and paste this complete crontab content:
+```bash
 # Auto backup every 6 hours
 0 */6 * * * cd /home/frappe/frappe-bench && /usr/local/bin/bench --verbose --site all backup >> /home/frappe/frappe-bench/logs/bench-backup.log 2>&1
 
@@ -451,6 +452,7 @@ crontab -u frappe -e
 
 # Daily restart: Start bench at 2:01 AM
 1 2 * * * cd /home/frappe/frappe-bench && source env/bin/activate && /usr/local/bin/bench start >> /home/frappe/frappe-bench/logs/bench-start.log 2>&1 &
+```
 
 
 ### Production Setup (Ubuntu/Debian)
