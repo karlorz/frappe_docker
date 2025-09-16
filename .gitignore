@@ -25,6 +25,7 @@ development/*
 *.pyc
 __pycache__
 venv
+uv.lock
 
 # NodeJS
 node_modules
