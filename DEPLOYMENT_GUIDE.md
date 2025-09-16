@@ -436,6 +436,22 @@ bench start
 # cd /home/frappe/frappe-bench
 # bench start
 ```
+# Edit crontab for automatic startup and daily restart @frappe user
+crontab -u frappe -e
+
+# Copy and paste this complete crontab content:
+# Auto backup every 6 hours
+0 */6 * * * cd /home/frappe/frappe-bench && /usr/local/bin/bench --verbose --site all backup >> /home/frappe/frappe-bench/logs/bench-backup.log 2>&1
+
+# Start bench automatically at system boot
+@reboot sleep 60 && /bin/bash -c "cd /home/frappe/frappe-bench && source env/bin/activate && /usr/local/bin/bench start" >> /home/frappe/frappe-bench/logs/bench-boot.log 2>&1 &
+
+# Daily restart: Kill bench processes at 2 AM
+0 2 * * * pkill -f "bench" && sleep 5 >> /home/frappe/frappe-bench/logs/bench-kill.log 2>&1
+
+# Daily restart: Start bench at 2:01 AM
+1 2 * * * cd /home/frappe/frappe-bench && source env/bin/activate && /usr/local/bin/bench start >> /home/frappe/frappe-bench/logs/bench-start.log 2>&1 &
+
 
 ### Production Setup (Ubuntu/Debian)
 
