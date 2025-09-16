@@ -14,8 +14,8 @@ NC='\033[0m' # No Color
 # Default values
 PLATFORM="linux/arm64"
 TARGET=""
-FRAPPE_VERSION="version-15-dev"
-ERPNEXT_VERSION="version-15-dev"
+FRAPPE_VERSION="develop-next"
+ERPNEXT_VERSION="develop-next"
 REGISTRY_USER="ghcr.io/karlorz"
 BUILD_ARGS=""
 PUSH=false
@@ -37,8 +37,8 @@ TARGETS:
 OPTIONS:
     -p, --platform PLATFORM    Target platform (default: linux/arm64)
                                Options: linux/arm64, linux/amd64, linux/arm64,linux/amd64
-    -f, --frappe VERSION       Frappe version/branch (default: version-15-dev)
-    -e, --erpnext VERSION      ERPNext version/branch (default: version-15-dev)
+    -f, --frappe VERSION       Frappe version/branch (default: develop-next)
+    -e, --erpnext VERSION      ERPNext version/branch (default: develop-next)
     -r, --registry USER        Registry user (default: ghcr.io/karlorz)
     --push                     Push images to registry after build
     --no-cache                 Build without cache

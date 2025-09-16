@@ -119,7 +119,7 @@ Even branches labeled "version-15" in frappe_docker development environment cont
 
 **Current Development Branches:**
 - `frappe`: version-15 branch (commit: `6ae7e0b` - September 2, 2025)
-- `erpnext`: version-15-dev branch
+- `erpnext`: develop-next branch
 
 **These "version-15" branches actually contain breaking changes from develop branch!**
 

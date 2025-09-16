@@ -214,7 +214,7 @@ code .
 **Inside Container Setup:**
 ```bash
 # Create bench
-bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
+bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch develop-next --skip-redis-config-generation frappe-bench
 cd frappe-bench
 
 # Configure for containers
@@ -227,7 +227,7 @@ bench set-config -g redis_socketio redis://redis-queue:6379
 bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 --admin-password admin development.localhost
 
 # Install ERPNext
-bench get-app --branch version-15-dev --resolve-deps erpnext https://github.com/karlorz/erpnext
+bench get-app --branch develop-next --resolve-deps erpnext https://github.com/karlorz/erpnext
 bench --site development.localhost install-app erpnext
 
 # Enable developer mode
@@ -290,11 +290,11 @@ git remote add upstream https://github.com/frappe/erpnext.git
 git fetch upstream
 
 # Create feature branches
-git checkout -b feature/custom-module version-15-dev
+git checkout -b feature/custom-module develop-next
 
 # Sync with upstream periodically
 git fetch upstream
-git checkout version-15-dev
+git checkout develop-next
 git merge upstream/version-15  # or rebase if preferred
 ```
 
@@ -359,23 +359,113 @@ pip3 install frappe-bench
 # Configure MariaDB
 sudo mysql_secure_installation
 sudo mysql -u root -p -e "UPDATE mysql.user SET Password=PASSWORD('yourpassword') WHERE User='root'"
+
+# Configure Redis (Option 1: Single instance for both cache and queue)
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+# Test Redis connectivity
+nc -z localhost 6379 && echo "Redis accessible"
+
+# Note: Ensure ports 8000 (web) and 9000 (socketio) are accessible from external connections
+# Configure your cloud provider security groups or firewall accordingly
+```
+
+**Create Frappe User:**
+```bash
+# Create dedicated frappe user (DO NOT run bench as root)
+sudo adduser frappe --gecos "Frappe Framework" --disabled-password
+sudo passwd frappe  # Set password
+sudo usermod -aG sudo frappe  # Add to sudo group
+
+# Switch to frappe user
+su - frappe
+cd /home/frappe
 ```
 
 **Setup Frappe:**
 ```bash
 # Initialize bench
-bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch version-15-dev --skip-redis-config-generation frappe-bench
+bench init --frappe-path https://github.com/karlorz/frappe --frappe-branch develop-next --skip-redis-config-generation frappe-bench
 cd frappe-bench
 
+# Configure Redis for bench (all services use same Redis instance)
+bench set-config -g redis_cache "redis://localhost:6379"
+bench set-config -g redis_queue "redis://localhost:6379"
+bench set-config -g redis_socketio "redis://localhost:6379"
+
+# Configure SocketIO port (matches Docker setup)
+bench set-config -gp socketio_port 9000
+
 # Create new site
-bench new-site mysite.local
+bench new-site development.localhost
 
 # Install ERPNext
-bench get-app --branch version-15-dev erpnext https://github.com/karlorz/erpnext
-bench --site mysite.local install-app erpnext
+bench get-app --branch develop-next erpnext https://github.com/karlorz/erpnext
+bench --site development.localhost install-app erpnext
 
-# Start development
+# Set default site (required for IP-based access)
+bench use development.localhost
+
+# Check default Procfile content (includes watch process by default)
+cat Procfile
+
+# For stable external access: Remove watch process from Procfile
+# Backup original Procfile first
+cp Procfile Procfile.original
+
+# Remove watch line from Procfile for stable development
+sed -i '/^watch:/d' Procfile
+
+# Verify watch line is removed
+cat Procfile
+
+# Build assets once (required before starting without watch)
+bench build
+
+# Start development server (now without file watcher)
 bench start
+# Access at: http://localhost:8000 or http://development.localhost:8000
+# Login: Administrator / admin
+
+# Alternative: Start only web server (workers must be started separately)
+# bench --site development.localhost serve --port 8000
+
+# Manual server activation (if user logged in as root or different user):
+# Switch to frappe user and navigate to bench directory
+# su - frappe
+# cd /home/frappe/frappe-bench
+# bench start
+```
+
+### Production Setup (Ubuntu/Debian)
+
+**For production deployment with automatic startup and Nginx:**
+
+```bash
+# Full production setup (replaces development server entirely)
+sudo bench setup production ubuntu --yes
+
+# This command does ALL of the following:
+# - Creates Supervisor configuration (manages all processes)
+# - Creates Nginx configuration (web server + reverse proxy)
+# - Sets up sudoers permissions (restart services without password)
+# - Links configurations to system directories
+# - Starts services automatically
+
+# After production setup:
+# - Services start automatically on boot via Supervisor
+# - Don't use "bench start" anymore (development command)
+# - Access via Nginx on port 80/443 instead of port 8000
+# - Manage processes: sudo supervisorctl status|start|stop|restart frappe-bench:*
+# - Check status: sudo supervisorctl status
+
+# Individual production setup commands (granular control):
+# bench setup supervisor    # Creates config/supervisor.conf
+# bench setup nginx         # Creates config/nginx.conf
+# bench setup sudoers $(whoami)  # Allows bench commands without password
+# bench setup redis         # Generates Redis configuration
+# bench setup socketio      # Sets up Node.js dependencies for SocketIO
+# bench setup backups       # Adds cron job for automated backups
 ```
 
 ### macOS Setup
@@ -473,8 +563,8 @@ git clone https://github.com/karlorz/frappe_docker
 cd frappe_docker
 
 # Set required environment variables
-export FRAPPE_VERSION="version-15-dev"
-export ERPNEXT_VERSION="version-15-dev" 
+export FRAPPE_VERSION="develop-next"
+export ERPNEXT_VERSION="develop-next" 
 export REGISTRY_USER="ghcr.io/karlorz"
 
 # Build for both AMD64 and ARM64 platforms
@@ -519,8 +609,8 @@ tail -f build.log
 ```bash
 # Issue: "couldn't find a bake definition"
 # Solution: Ensure environment variables are set
-export FRAPPE_VERSION="version-15-dev"
-export ERPNEXT_VERSION="version-15-dev"
+export FRAPPE_VERSION="develop-next"
+export ERPNEXT_VERSION="develop-next"
 
 # Issue: Build hangs or times out (Apple Silicon)
 # Solution: Increase Docker memory allocation (>4GB)
@@ -622,7 +712,7 @@ cat > apps.json << EOF
 [
   {
     "url": "https://github.com/karlorz/erpnext",
-    "branch": "version-15-dev"
+    "branch": "develop-next"
   },
   {
     "url": "https://github.com/yourorg/custom-app",
@@ -813,10 +903,10 @@ bench --site mysite.local migrate
 **For Development Environment:**
 ```bash
 # Update Frappe Framework from karlorz/frappe
-docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench/apps/frappe && git pull upstream version-15-dev"
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench/apps/frappe && git pull upstream develop-next"
 
 # Update ERPNext from karlorz/erpnext
-docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench/apps/erpnext && git pull upstream version-15-dev"
+docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench/apps/erpnext && git pull upstream develop-next"
 
 # Rebuild assets after updates
 docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && bench build"
@@ -832,8 +922,8 @@ docker exec frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/developme
 ```
 
 **Note**: The development container is already configured to use karlorz repositories:
-- Frappe: `https://github.com/karlorz/frappe` (branch: version-15-dev)
-- ERPNext: `https://github.com/karlorz/erpnext` (branch: version-15-dev)
+- Frappe: `https://github.com/karlorz/frappe` (branch: develop-next)
+- ERPNext: `https://github.com/karlorz/erpnext` (branch: develop-next)
 
 ### Monitoring and Logs
 ```bash

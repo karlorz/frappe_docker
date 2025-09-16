@@ -12,13 +12,13 @@ This repository contains Docker containerization for Frappe Framework and ERPNex
 
 ### **Primary Source Repositories**
 - **Frappe Framework**: `/Users/karlchow/Desktop/code/frappe` 
-  - Branch: `version-15-dev`
+  - Branch: `develop-next`
   - Full git history available  
   - Use for framework-level investigations
   - **Note**: Contains fixes for demo data setup wizard issue (sanitize_input removal)
 
 - **ERPNext**: `/Users/karlchow/Desktop/code/karlorz/erpnext`
-  - Branch: `version-15-dev` 
+  - Branch: `develop-next` 
   - Full git history available
   - Use for ERPNext-specific investigations
 
@@ -449,7 +449,7 @@ bench set-config -g redis_queue redis://redis-queue:6379
 
 # Create site and install ERPNext
 bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 development.localhost
-bench get-app --branch version-15-dev --resolve-deps erpnext https://github.com/karlorz/erpnext
+bench get-app --branch develop-next --resolve-deps erpnext https://github.com/karlorz/erpnext
 bench --site development.localhost install-app erpnext
 
 # Start development server
@@ -475,7 +475,7 @@ python development/installer.py \
   --site-name custom.localhost \
   --admin-password custompass \
   --recreate-site \
-  --frappe-branch version-15-dev
+  --frappe-branch develop-next
 ```
 
 ### Site Management Commands (Docker CLI)
@@ -538,14 +538,14 @@ pip3 install frappe-bench
 ### Native Installation Process
 ```bash
 # Initialize bench
-bench init --frappe-branch version-15-dev frappe-bench
+bench init --frappe-branch develop-next frappe-bench
 cd frappe-bench
 
 # Create site
 bench new-site mysite.local
 
 # Install ERPNext
-bench get-app --branch version-15-dev erpnext https://github.com/karlorz/erpnext
+bench get-app --branch develop-next erpnext https://github.com/karlorz/erpnext
 bench --site mysite.local install-app erpnext
 
 # Setup production (optional)
