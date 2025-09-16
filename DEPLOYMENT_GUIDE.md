@@ -636,6 +636,109 @@ APPS_JSON_BASE64=$(base64 -w 0 apps.json) docker buildx bake \
   --set "*.args.APPS_JSON_BASE64=$APPS_JSON_BASE64"
 ```
 
+## 👥 User Management with Bench Console
+
+### Accessing Bench Console
+```bash
+# For Hybrid Setup (Native)
+cd development/frappe-bench
+source env/bin/activate
+bench --site development.localhost console
+
+# For Container Setup
+docker exec -it frappe_docker_devcontainer-frappe-1 bash -c "cd /workspace/development/frappe-bench && source env/bin/activate && bench --site development.localhost console"
+```
+
+### Basic User Operations
+```bash
+# List all users in the system
+frappe.get_all("User", fields=["name", "email", "enabled", "user_type", "creation"])
+
+# Check specific user details
+user = frappe.get_doc("User", "Administrator")
+print("User:", user.email)
+print("Enabled:", user.enabled)
+print("User type:", user.user_type)
+print("Roles:", [d.role for d in user.roles])
+
+# Check if a user exists
+try:
+    user = frappe.get_doc("User", "guest@example.com")
+    print("User exists:", user.email)
+except frappe.DoesNotExistError:
+    print("User does not exist")
+```
+
+### Creating Test Users
+```bash
+# Create a test guest user
+guest_user = frappe.get_doc({
+    "doctype": "User",
+    "email": "guest@example.com",
+    "first_name": "Guest",
+    "user_type": "Website User",
+    "enabled": 1,
+    "new_password": "guest123"
+})
+guest_user.insert()
+frappe.db.commit()
+
+# Create a system user with different roles
+system_user = frappe.get_doc({
+    "doctype": "User",
+    "email": "test@example.com",
+    "first_name": "Test",
+    "last_name": "User",
+    "user_type": "System User",
+    "enabled": 1,
+    "new_password": "test123"
+})
+system_user.insert()
+frappe.db.commit()
+```
+
+### Password Management
+```bash
+# Set password for existing user
+user = frappe.get_doc("User", "guest@example.com")
+user.new_password = "newpassword123"
+user.save()
+frappe.db.commit()
+
+# Check if user has password
+user = frappe.get_doc("User", "guest@example.com")
+print("Has password:", bool(user.password))
+```
+
+### Testing User Permissions
+```bash
+# Test user permissions
+frappe.set_user("guest@example.com")
+print("Current user:", frappe.session.user)
+print("Can read User doctype:", frappe.has_permission("User", "read"))
+print("Can create User:", frappe.has_permission("User", "create"))
+
+# Reset back to Administrator
+frappe.set_user("Administrator")
+print("Back to Administrator:", frappe.session.user)
+```
+
+### User Role Management
+```bash
+# Add role to user
+user = frappe.get_doc("User", "test@example.com")
+user.append("roles", {"role": "Sales User"})
+user.save()
+
+# Remove role from user
+user = frappe.get_doc("User", "test@example.com")
+user.roles = [d for d in user.roles if d.role != "Sales User"]
+user.save()
+
+# List all available roles
+frappe.get_all("Role", fields=["name", "desk_access"])
+```
+
 ## 🔧 Common Operations
 
 ### Site Management

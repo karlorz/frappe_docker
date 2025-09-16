@@ -229,6 +229,50 @@ pip install -r requirements-test.txt
 pytest
 ```
 
+### User Management with Bench Console
+```bash
+# Enter bench console for user management
+cd development/frappe-bench
+source env/bin/activate
+bench --site development.localhost console
+
+# List all users in the system
+frappe.get_all("User", fields=["name", "email", "enabled", "user_type", "creation"])
+
+# Check specific user details
+user = frappe.get_doc("User", "Administrator")
+print("User:", user.email)
+print("Enabled:", user.enabled)
+print("User type:", user.user_type)
+print("Roles:", [d.role for d in user.roles])
+
+# Create a test guest user
+guest_user = frappe.get_doc({
+    "doctype": "User",
+    "email": "guest@example.com",
+    "first_name": "Guest",
+    "user_type": "Website User",
+    "enabled": 1,
+    "new_password": "guest123"
+})
+guest_user.insert()
+frappe.db.commit()
+
+# Set password for existing user
+user = frappe.get_doc("User", "guest@example.com")
+user.new_password = "newpassword123"
+user.save()
+frappe.db.commit()
+
+# Test user permissions
+frappe.set_user("guest@example.com")
+print("Current user:", frappe.session.user)
+print("Can read User doctype:", frappe.has_permission("User", "read"))
+
+# Reset back to Administrator
+frappe.set_user("Administrator")
+```
+
 ### API Testing with cURL
 ```bash
 # First login to get session cookies
@@ -288,7 +332,8 @@ The `docker-bake.hcl` file defines:
 
 ## Development Workflow
 
-### Hybrid Native + Container Setup (Recommended for macOS/Linux)
+### Default Development Setup: Hybrid Native + Container Setup
+**PREFERRED APPROACH**: Running web server natively while using containerized backend services
 **For running web server natively while using containerized backend services:**
 
 **Prerequisites:**
@@ -377,7 +422,7 @@ cd frappe-bench && source env/bin/activate && bench --site development.localhost
 - Debugger uses correct Python interpreter: `development/frappe-bench/env/bin/python`
 - Access debug server at: http://localhost:8000 (same as serve command)
 
-### VSCode Dev Containers Setup (Full Container Environment)
+### Alternative: VSCode Dev Containers Setup (Full Container Environment)
 1. Copy example devcontainer configuration
 2. Choose database (MariaDB default, PostgreSQL optional)
 3. Open folder in VSCode with Remote-Containers extension
